@@ -57,7 +57,7 @@ pyannote.audio 的模型托管在 HuggingFace 上，需要：
 1. 注册 HuggingFace 账号（https://huggingface.co/join）
 2. 访问 pyannote/embedding 页面（https://huggingface.co/pyannote/embedding），同意用户协议
 3. 在 Settings → Access Tokens 中创建 Token
-4. 将 Token 填入 `config.json` 的 `hf_token` 字段
+4. 将 Token 填入 `resources/config.json` 的 `hf_token` 字段
 
 **国内网络加速**：项目已配置 HuggingFace 国内镜像（`https://hf-mirror.com`），下载模型时会自动走镜像站。
 
@@ -65,13 +65,13 @@ pyannote.audio 的模型托管在 HuggingFace 上，需要：
 
 1. 注册智谱 AI 开放平台（https://open.bigmodel.cn/）
 2. 创建 API Key
-3. 将 API Key 填入 `config.json` 的 `glm_api_key` 字段
+3. 将 API Key 填入 `resources/config.json` 的 `glm_api_key` 字段
 
 ---
 
 ## 3. 配置说明
 
-`config.json` 各配置项：
+`resources/config.json` 各配置项：
 
 | 配置项 | 说明 | 默认值 |
 | --- | --- | --- |
@@ -84,9 +84,9 @@ pyannote.audio 的模型托管在 HuggingFace 上，需要：
 | speaker_threshold | 说话人识别相似度阈值（0-1） | 0.7 |
 | audio_sample_rate | 录音采样率 (Hz) | 16000 |
 | transcribe_interval | 转写间隔 (秒) | 3 |
-| voiceprint_dir | 声纹数据存储目录 | voiceprints |
-| recording_dir | 录音文件存储目录 | recordings |
-| db_path | SQLite 数据库文件路径 | meetwise.db |
+| voiceprint_dir | 声纹数据存储目录 | data/voiceprints |
+| recording_dir | 录音文件存储目录 | data/recordings |
+| db_path | SQLite 数据库文件路径 | data/meetwise.db |
 
 Whisper 模型选择：
 
@@ -104,7 +104,7 @@ Whisper 模型选择：
 ### 4.1 开发模式
 
 ```bash
-python controllers/main.py
+python main.py
 ```
 
 **预下载模型（推荐）**：首次启动会自动下载模型，国内网络可在启动前执行：
@@ -124,7 +124,7 @@ pyinstaller meetwise.spec
 ```
 
 打包注意事项：
-- config.json 和 voiceprints/ 目录需与 exe 放在同一目录
+- resources/config.json 需与 exe 放在同一目录
 - 检查 meetwise.spec 中的 hidden imports 是否完整
 - 建议在虚拟环境中打包，避免打包多余依赖
 

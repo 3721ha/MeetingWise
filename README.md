@@ -35,47 +35,61 @@ source venv/bin/activate     # macOS/Linux
 # 安装依赖
 pip install -r requirements.txt
 
-# 配置 API 密钥（编辑 config.json）
+# 配置 API 密钥（编辑 resources/config.json）
 # 填入 glm_api_key 和 hf_token
 
 # （可选）预下载模型，避免首次启动耗时
-python download_models.py
+python scripts/download_models.py
 
 # 启动
 python main.py
 ```
 
-首次运行需联网下载模型（faster-whisper base 约 140MB，pyannote/embedding 约 100MB），后续自动使用本地缓存。国内网络建议先执行 `python download_models.py` 预下载。
+首次运行需联网下载模型（faster-whisper base 约 140MB，pyannote/embedding 约 100MB），后续自动使用本地缓存。国内网络建议先执行 `python scripts/download_models.py` 预下载。
 
 ## 项目结构
 
 ```
 MeetWise/
-├── controllers/
-│   └── main.py                # 程序入口
-├── models/
-│   ├── database.py            # SQLite 数据库管理
-│   ├── whisper_client.py      # faster-whisper 封装
-│   ├── llm_client.py          # 智谱 GLM API 封装
-│   ├── speaker_recognizer.py  # 说话人识别（声纹提取与比对）
-│   ├── voiceprint_manager.py   # 声纹注册管理
-│   └── realtime_transcriber.py # 实时转写引擎（录音+转写+识别）
-├── views/
-│   ├── main_window.py         # 主窗口 UI 与交互逻辑
-│   └── ui_styles.py           # 深色主题 QSS 样式
-├── utils/
-│   └── config_manager.py      # 配置管理
-├── scripts/
-│   └── download_models.py     # 模型预下载脚本
-├── config.json                # 配置文件
-├── requirements.txt           # 依赖清单
-├── meetwise.spec              # PyInstaller 打包配置
-├── docs/                      # 文档目录
-│   ├── requirements_spec.md
-│   ├── deployment_guide.md
-│   └── design.md
-├── voiceprints/              # 声纹数据（运行时自动创建）
-└── recordings/               # 录音文件（运行时自动创建）
+├── main.py                          # 程序入口
+├── requirements.txt                 # Python 依赖清单
+├── meetwise.spec                    # PyInstaller 打包配置
+│
+├── meetwise/                        # 应用源代码包
+│   ├── __init__.py
+│   ├── database.py                  # 数据库访问层（SQLite CRUD）
+│   ├── view/                        # 视图层
+│   │   ├── __init__.py
+│   │   ├── main_window.py           # 主窗口（UI 布局 + 交互逻辑）
+│   │   └── ui_styles.py             # 样式定义（深色主题、配色常量）
+│   ├── services/                    # 业务服务层
+│   │   ├── __init__.py
+│   │   ├── realtime_transcriber.py  # 实时转写引擎（协调录音/转写/识别）
+│   │   ├── speaker_recognizer.py    # 说话人识别（声纹特征提取与比对）
+│   │   ├── voiceprint_manager.py    # 声纹注册管理
+│   │   ├── whisper_client.py        # Whisper 语音转写封装
+│   │   └── llm_client.py           # 智谱 GLM API 客户端
+│   └── utils/                       # 工具/基础设施层
+│       ├── __init__.py
+│       └── config_manager.py        # 配置管理（单例模式）
+│
+├── resources/                       # 静态资源（打包时附带）
+│   └── config.json                  # 应用配置文件
+│
+├── data/                            # 运行时数据（不打包）
+│   ├── meetwise.db                  # SQLite 数据库文件
+│   ├── recordings/                  # 录音文件
+│   │   └── meeting_{id}.wav
+│   └── voiceprints/                 # 声纹数据
+│       └── {name}.npy
+│
+├── scripts/                         # 工具脚本
+│   └── download_models.py           # 模型预下载脚本
+│
+└── docs/                            # 项目文档
+    ├── requirements_spec.md         # 需求规格说明书
+    ├── deployment_guide.md          # 开发与部署运维手册
+    └── design.md                    # 设计文档
 ```
 
 ## 环境要求

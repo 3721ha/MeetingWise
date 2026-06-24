@@ -29,9 +29,9 @@
 | 触发方式 | 用户点击"声纹管理"按钮，弹出注册对话框 |
 | 输入 | 用户姓名（文本）+ 10-30 秒语音录音（16kHz 单声道） |
 | 输出 | 512 维声纹特征向量（.npy 文件），注册成功提示 |
-| 处理流程 | 开始录音 → sounddevice 流式采集 → 停止录音 → pyannote.audio 提取 embedding → 保存为 voiceprints/{name}.npy → 数据库记录路径 |
+| 处理流程 | 开始录音 → sounddevice 流式采集 → 停止录音 → pyannote.audio 提取 embedding → 保存为 data/voiceprints/{name}.npy → 数据库记录路径 |
 | 数据库存储 | voiceprints 表：id（自增主键）、name（姓名，唯一）、embedding_path（.npy 文件路径）、created_at（注册时间） |
-| 文件存储 | voiceprints/{name}.npy（numpy 数组，512 维 float32 向量） |
+| 文件存储 | data/voiceprints/{name}.npy（numpy 数组，512 维 float32 向量） |
 | 关键约束 | 录音时长至少 3 秒，低于 3 秒提示"录音时间太短"；同名已存在时提示"该姓名已注册" |
 | 线程要求 | 录音在子线程，embedding 提取在子线程，UI 不阻塞 |
 
@@ -43,7 +43,7 @@
 | 触发方式 | 用户点击"开始会议"按钮 |
 | 输入 | 麦克风实时音频流（16kHz、单声道、float32） |
 | 输出 | 实时气泡消息"发言人：对话内容"，自动滚动显示 |
-| 处理流程 | sounddevice 回调采集音频 → queue.put → 每 3 秒取出累积音频 → faster-whisper 转写 → Signal 发送到 UI → 保存到数据库 → 同步保存完整音频到 recordings/ |
+| 处理流程 | sounddevice 回调采集音频 → queue.put → 每 3 秒取出累积音频 → faster-whisper 转写 → Signal 发送到 UI → 保存到数据库 → 同步保存完整音频到 data/recordings/ |
 | 数据库存储 | meetings 表：id、title、start_time、end_time、status（recording/ended）、recording_path |
 | 数据库存储 | utterances 表：id、meeting_id、speaker、speaker_id、text、timestamp、audio_start、audio_end |
 | 关键约束 | sounddevice 回调只做 queue.put，严禁耗时操作；转写间隔可配置（默认 3 秒）；自动滚动到底部；完整录音保存为 WAV |
@@ -58,7 +58,7 @@
 | 输入 | 音频片段（numpy 数组）+ 已注册声纹库（dict） |
 | 输出 | 发言人名称（已注册姓名 或 "陌生人A/B/C..."） |
 | 处理流程 | pyannote.audio 提取当前片段 embedding → 遍历声纹库计算余弦相似度 → 最高相似度 >= 0.7 返回对应姓名；否则分配陌生人编号 |
-| 数据来源 | 读取 voiceprints 表获取已注册声纹；读取 voiceprints/{name}.npy 加载声纹向量 |
+| 数据来源 | 读取 voiceprints 表获取已注册声纹；读取 data/voiceprints/{name}.npy 加载声纹向量 |
 | 关键约束 | 余弦相似度阈值 0.7（可在 config.json 调整）；陌生人编号按字母序递增（A-Z），超过 26 个后转为数字编号；声纹提取失败时返回"未知说话人" |
 | 相似度公式 | cosine_similarity = dot(a, b) / (norm(a) * norm(b)) |
 
@@ -126,7 +126,7 @@
 | 触发方式 | 用户左键点击任意转写气泡 |
 | 输入 | 点击的 utterance 记录（包含 audio_start 和 audio_end 时间戳） |
 | 输出 | 从对应时间位置开始播放会议录音 |
-| 处理流程 | 点击气泡 → 获取 audio_start → 加载会议录音文件（recordings/{meeting_id}.wav）→ 从 audio_start 位置播放 → 播放时高亮当前气泡 → 播放完毕取消高亮 |
+| 处理流程 | 点击气泡 → 获取 audio_start → 加载会议录音文件（data/recordings/{meeting_id}.wav）→ 从 audio_start 位置播放 → 播放时高亮当前气泡 → 播放完毕取消高亮 |
 | 数据来源 | meetings 表 recording_path 字段；utterances 表 audio_start/audio_end 字段 |
 | 关键约束 | 录音文件在会议结束时保存为完整 WAV；支持播放中点击其他气泡跳转；播放时气泡边框紫色高亮 |
 | UI 交互 | 悬停气泡显示手型光标；点击后边框紫色高亮 |
