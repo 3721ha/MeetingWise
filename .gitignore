@@ -1,0 +1,56 @@
+# 虚拟环境
+.venv/
+venv/
+
+# 数据库文件
+data/*.db
+
+# 录音文件
+data/recordings/
+
+recordings/
+
+# 声纹数据
+data/voiceprints/
+voiceprints/
+
+# IDE 配置
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 缓存和日志
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# 模型文件（大文件，建议通过脚本下载）
+*.bin
+*.onnx
+models/
+
+# 临时文件
+*.tmp
+*.bak
+
+# 打包产物
+dist/
+build/
+*.spec.d/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 环境变量
+.env
+.env.local
+
+# 配置文件（包含敏感信息）
+config.json
+resources/config.json
+
+# ffmpeg 库（大文件）
+ffmpeg-master-latest-win64-gpl-shared/
