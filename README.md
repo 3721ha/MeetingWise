@@ -71,8 +71,9 @@ MeetWise/
 ├── requirements.txt           # 依赖清单
 ├── meetwise.spec              # PyInstaller 打包配置
 ├── docs/                      # 文档目录
-│   ├── 01_需求规格说明书.md
-│   └── 02_开发与部署运维手册.md
+│   ├── requirements_spec.md
+│   ├── deployment_guide.md
+│   └── design.md
 ├── voiceprints/              # 声纹数据（运行时自动创建）
 └── recordings/               # 录音文件（运行时自动创建）
 ```
@@ -88,8 +89,9 @@ MeetWise/
 
 ## 相关文档
 
-- [需求规格说明书](docs/01_需求规格说明书.md) — 功能需求详细规格与数据库设计
-- [开发与部署运维手册](docs/02_开发与部署运维手册.md) — 环境配置、使用指南、打包部署、常见问题
+- [需求规格说明书](docs/requirements_spec.md) — 功能需求详细规格
+- [开发与部署运维手册](docs/deployment_guide.md) — 环境配置、使用指南、打包部署、常见问题
+- [设计文档](docs/design.md) — 系统架构、目录结构、数据库设计、数据流
 
 ## 许可证
 

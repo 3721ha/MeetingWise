@@ -112,8 +112,8 @@ MeetWise/
 │   └── download_models.py          # 模型预下载脚本
 │
 ├── docs/                           # 文档
-│   ├── 01_需求规格说明书.md
-│   ├── 02_开发与部署运维手册.md
+│   ├── requirements_spec.md
+│   ├── deployment_guide.md
 │   └── design.md                   # 本文档
 │
 ├── voiceprints/                    # 声纹数据（运行时自动创建）
@@ -146,12 +146,84 @@ MeetWise/
 
 #### `models/database.py`
 **职责**：数据持久化
-**数据表**：
-- `meetings`：会议信息
-- `transcripts`：转写分段
-- `summaries`：AI 摘要
-- `chat_history`：AI 对话历史
-- `voiceprints`：声纹注册
+**数据库类型**：SQLite（文件型数据库，无需独立服务）
+**外键约束**：启用 `PRAGMA foreign_keys = ON`，支持级联删除
+
+##### 数据表结构
+
+**meetings（会议表）**
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | INTEGER | PRIMARY KEY AUTOINCREMENT | 会议唯一标识 |
+| title | TEXT | NOT NULL | 会议标题 |
+| start_time | TEXT | NOT NULL | 开始时间（ISO 格式） |
+| end_time | TEXT | | 结束时间（ISO 格式） |
+| status | TEXT | DEFAULT 'recording' | 状态：recording / ended |
+| recording_path | TEXT | | 录音文件路径 |
+
+**utterances（发言记录表）**
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | INTEGER | PRIMARY KEY AUTOINCREMENT | 发言唯一标识 |
+| meeting_id | INTEGER | NOT NULL, FOREIGN KEY | 关联会议 ID |
+| speaker | TEXT | NOT NULL | 发言人姓名 |
+| speaker_id | TEXT | | 说话人标识符（内部使用） |
+| text | TEXT | NOT NULL | 转写文本 |
+| timestamp | REAL | NOT NULL | 发言时间戳（秒） |
+| audio_start | REAL | DEFAULT 0 | 音频起始位置（秒） |
+| audio_end | REAL | DEFAULT 0 | 音频结束位置（秒） |
+
+**summaries（会议摘要表）**
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | INTEGER | PRIMARY KEY AUTOINCREMENT | 摘要唯一标识 |
+| meeting_id | INTEGER | NOT NULL UNIQUE, FOREIGN KEY | 关联会议 ID |
+| content | TEXT | NOT NULL | 摘要内容（Markdown 格式） |
+| created_at | TEXT | NOT NULL | 创建时间（ISO 格式） |
+
+**chat_history（AI 对话历史表）**
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | INTEGER | PRIMARY KEY AUTOINCREMENT | 对话唯一标识 |
+| meeting_id | INTEGER | NOT NULL, FOREIGN KEY | 关联会议 ID |
+| question | TEXT | NOT NULL | 用户问题 |
+| answer | TEXT | NOT NULL | AI 回答 |
+| created_at | TEXT | NOT NULL | 创建时间（ISO 格式） |
+
+**voiceprints（声纹注册表）**
+
+| 字段 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | INTEGER | PRIMARY KEY AUTOINCREMENT | 声纹唯一标识 |
+| name | TEXT | NOT NULL UNIQUE | 发言人姓名 |
+| embedding_path | TEXT | NOT NULL | 声纹特征文件路径（.npy） |
+| created_at | TEXT | NOT NULL | 注册时间（ISO 格式） |
+
+##### 核心方法
+
+| 方法 | 说明 |
+|------|------|
+| `create_meeting(title)` | 创建新会议，返回会议 ID |
+| `end_meeting(meeting_id, recording_path)` | 结束会议，更新状态和录音路径 |
+| `get_all_meetings()` | 获取所有会议列表（按时间倒序） |
+| `get_meeting(meeting_id)` | 获取单个会议详情 |
+| `delete_meeting(meeting_id)` | 删除会议及所有关联数据（级联删除） |
+| `save_utterance(meeting_id, speaker, text, ...)` | 保存一条发言记录 |
+| `get_utterances(meeting_id)` | 获取会议的所有发言记录 |
+| `update_speaker_name(old_name, new_name)` | 更新发言人名称（用于陌生人重命名） |
+| `get_full_transcript(meeting_id)` | 获取会议完整转写文本 |
+| `save_summary(meeting_id, content)` | 保存/更新会议摘要 |
+| `get_summary(meeting_id)` | 获取会议摘要 |
+| `save_chat(meeting_id, question, answer)` | 保存 AI 对话 |
+| `get_chats(meeting_id)` | 获取会议的所有对话记录 |
+| `save_voiceprint(name, embedding, voiceprint_dir)` | 保存声纹（文件 + 数据库） |
+| `get_all_voiceprints()` | 获取所有已注册声纹 {name: embedding_array} |
+| `get_voiceprint_names()` | 获取所有声纹名称列表 |
+| `delete_voiceprint(name, voiceprint_dir)` | 删除声纹（文件 + 数据库） |
 
 #### `models/whisper_client.py`
 **职责**：语音转写
