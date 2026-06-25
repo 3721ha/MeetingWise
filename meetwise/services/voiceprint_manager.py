@@ -10,6 +10,9 @@ import sounddevice as sd
 import threading
 import os
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class VoiceprintManager:
@@ -55,7 +58,7 @@ class VoiceprintManager:
         try:
             def audio_callback(indata, frames, time_info, status):
                 if status:
-                    print(f"[VoiceprintManager] 录音状态: {status}")
+                    logger.debug(f"[VoiceprintManager] 录音状态: {status}")
                 if self._is_recording:
                     self._audio_chunks.append(indata.copy())
                     # 回调录音时长

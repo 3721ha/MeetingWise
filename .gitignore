@@ -25,6 +25,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.egg-info/
+meetwise.log
 
 # 模型文件（大文件，建议通过脚本下载）
 *.bin

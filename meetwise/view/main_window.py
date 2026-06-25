@@ -17,8 +17,9 @@ from PySide6.QtWidgets import (
     QLineEdit, QScrollArea, QFrame, QDialog, QInputDialog,
     QMessageBox, QMenu, QSizePolicy, QSpacerItem
 )
-from PySide6.QtCore import Qt, QTimer, QThread, Signal
+from PySide6.QtCore import Qt, QTimer, QThread, Signal, QMetaObject, Q_ARG
 from PySide6.QtGui import QFont, QIcon, QCursor
+import PySide6.QtGui as QtGui
 
 from meetwise.utils.config_manager import ConfigManager
 from meetwise.database import Database
@@ -55,6 +56,12 @@ class ModelLoaderThread(QThread):
 class MainWindow(QMainWindow):
     """智会 MeetWise 主窗口"""
 
+    summary_ready = Signal(str)
+    summary_error = Signal(str)
+    chat_ready = Signal(str, str)
+    chat_error = Signal(str, str)
+    api_test_ready = Signal(bool, str)
+
     def __init__(self):
         super().__init__()
 
@@ -90,6 +97,13 @@ class MainWindow(QMainWindow):
         self._record_timer = QTimer()
         self._record_timer.timeout.connect(self._update_timer_display)
         self._record_start_time = 0
+
+        # 连接自定义信号
+        self.summary_ready.connect(self._on_summary_ready)
+        self.summary_error.connect(self._on_summary_error)
+        self.chat_ready.connect(self._on_chat_ready)
+        self.chat_error.connect(self._on_chat_error)
+        self.api_test_ready.connect(self._on_api_test_result)
 
         # 构建 UI
         self._init_ui()
@@ -153,11 +167,6 @@ class MainWindow(QMainWindow):
         layout = QHBoxLayout(frame)
         layout.setContentsMargins(16, 8, 16, 8)
 
-        # 标题
-        title = QLabel("智会 MeetWise")
-        title.setObjectName("titleLabel")
-        layout.addWidget(title)
-
         layout.addSpacerItem(QSpacerItem(40, 20, QSizePolicy.Expanding))
 
         # 声纹管理按钮
@@ -184,11 +193,33 @@ class MainWindow(QMainWindow):
         """)
         layout = QVBoxLayout(frame)
         layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(6)
 
         # 标题
         label = QLabel("会议列表")
         label.setStyleSheet(f"color: {Colors.ACCENT_LIGHT}; font-weight: bold; font-size: 14px; padding: 4px;")
         layout.addWidget(label)
+
+        # 搜索框
+        search_layout = QHBoxLayout()
+        self._search_edit = QLineEdit()
+        self._search_edit.setPlaceholderText("搜索会议...")
+        self._search_edit.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {Colors.BG_DARKEST};
+                border: 1px solid {Colors.BORDER};
+                border-radius: 4px;
+                padding: 4px 8px;
+                color: {Colors.TEXT_PRIMARY};
+                font-size: 12px;
+            }}
+            QLineEdit:focus {{
+                border-color: {Colors.ACCENT_LIGHT};
+            }}
+        """)
+        self._search_edit.textChanged.connect(self._on_search_text_changed)
+        search_layout.addWidget(self._search_edit)
+        layout.addLayout(search_layout)
 
         # 会议列表
         self._meeting_list = QListWidget()
@@ -293,10 +324,6 @@ class MainWindow(QMainWindow):
         layout.setSpacing(6)
 
         # ===== 摘要区域 =====
-        summary_label = QLabel("会议摘要")
-        summary_label.setStyleSheet(f"color: {Colors.ACCENT_LIGHT}; font-weight: bold; font-size: 14px; padding: 4px;")
-        layout.addWidget(summary_label)
-
         self._summary_text = QTextEdit()
         self._summary_text.setReadOnly(True)
         self._summary_text.setPlaceholderText("点击\"生成摘要\"按钮生成会议摘要...")
@@ -356,14 +383,47 @@ class MainWindow(QMainWindow):
 
     # ==================== 会议列表操作 ====================
 
-    def _load_meeting_list(self):
+    def _format_duration(self, start_time, end_time):
+        """格式化会议时长"""
+        try:
+            from datetime import datetime
+            start = datetime.fromisoformat(start_time)
+            if end_time:
+                end = datetime.fromisoformat(end_time)
+                delta = end - start
+                seconds = int(delta.total_seconds())
+            else:
+                delta = datetime.now() - start
+                seconds = int(delta.total_seconds())
+            
+            hours = seconds // 3600
+            minutes = (seconds % 3600) // 60
+            secs = seconds % 60
+            
+            if hours > 0:
+                return f"{hours}时{minutes}分"
+            elif minutes > 0:
+                return f"{minutes}分{secs}秒"
+            else:
+                return f"{secs}秒"
+        except:
+            return ""
+
+    def _load_meeting_list(self, keyword=None):
         """加载会议列表"""
         self._meeting_list.clear()
-        meetings = self._db.get_all_meetings()
+        
+        if keyword:
+            meetings = self._db.search_meetings(keyword)
+        else:
+            meetings = self._db.get_all_meetings()
+        
         for m in meetings:
             status_icon = "●" if m["status"] == "recording" else "○"
+            pin_icon = "📌 " if m.get("is_pinned", False) else ""
             time_str = m["start_time"][:16].replace("T", " ")
-            text = f"{status_icon} {m['title']}\n    {time_str}"
+            duration = self._format_duration(m["start_time"], m["end_time"])
+            text = f"{pin_icon}{status_icon} {m['title']}\n    {time_str}  |  {duration}"
             item = QListWidgetItem(text)
             item.setData(Qt.UserRole, m["id"])
             self._meeting_list.addItem(item)
@@ -374,6 +434,10 @@ class MainWindow(QMainWindow):
             return
         meeting_id = current.data(Qt.UserRole)
         self._load_meeting_detail(meeting_id)
+
+    def _on_search_text_changed(self, text):
+        """搜索文本变化"""
+        self._load_meeting_list(text.strip())
 
     def _load_meeting_detail(self, meeting_id):
         """加载会议详情到中间和右侧面板"""
@@ -407,12 +471,21 @@ class MainWindow(QMainWindow):
         if item is None:
             return
 
+        meeting_id = item.data(Qt.UserRole)
+        meeting = self._db.get_meeting(meeting_id)
+        
         menu = QMenu()
+        
+        pin_action = menu.addAction("取消置顶" if meeting and meeting.get("is_pinned") else "置顶")
         delete_action = menu.addAction("删除会议")
+        
         action = menu.exec(self._meeting_list.mapToGlobal(pos))
 
+        if action == pin_action:
+            self._db.toggle_pin_meeting(meeting_id)
+            self._load_meeting_list()
+        
         if action == delete_action:
-            meeting_id = item.data(Qt.UserRole)
             reply = QMessageBox.question(
                 self, "确认删除",
                 "确定要删除这个会议吗？所有相关数据（转写、摘要、对话记录）都将被删除。",
@@ -433,6 +506,11 @@ class MainWindow(QMainWindow):
         if self._transcriber and self._transcriber.state == RealtimeTranscriber.RECORDING:
             self._on_stop_clicked()
             return
+
+        # 确保旧线程完全退出
+        if self._transcriber and self._transcriber.isRunning():
+            self._transcriber.stop()
+            self._transcriber.wait(2000)
 
         # 创建新会议
         self._current_meeting_id = self._db.create_meeting()
@@ -520,6 +598,22 @@ class MainWindow(QMainWindow):
         self._btn_start.setEnabled(True)
         self._btn_pause.setEnabled(False)
         self._btn_stop.setEnabled(False)
+
+        if self._current_meeting_id:
+            meeting = self._db.get_meeting(self._current_meeting_id)
+            if meeting:
+                duration_str = self._format_duration(meeting["start_time"], meeting["end_time"])
+                date_str = meeting["start_time"][:10].replace("-", ".")
+                
+                default_name = f"会议--{date_str}--{duration_str}"
+                name, ok = QInputDialog.getText(
+                    self, "输入会议名称", "请输入会议名称:",
+                    QLineEdit.Normal, default_name
+                )
+                
+                if ok and name.strip():
+                    self._db.update_meeting_title(self._current_meeting_id, name.strip())
+
         self._load_meeting_list()
         self.statusBar().showMessage("会议已结束")
 
@@ -750,9 +844,12 @@ class MainWindow(QMainWindow):
 
         # 在子线程中调用 API
         def generate():
-            result = self._llm.generate_summary(transcript)
-            # 回到主线程更新 UI
-            QTimer.singleShot(0, lambda: self._on_summary_ready(result))
+            try:
+                result = self._llm.generate_summary(transcript)
+                self.summary_ready.emit(result)
+            except Exception as e:
+                error_msg = f"摘要生成失败: {str(e)}"
+                self.summary_error.emit(error_msg)
 
         import threading
         threading.Thread(target=generate, daemon=True).start()
@@ -766,6 +863,13 @@ class MainWindow(QMainWindow):
         # 保存到数据库
         if self._current_meeting_id:
             self._db.save_summary(self._current_meeting_id, summary)
+
+    def _on_summary_error(self, error_msg):
+        """摘要生成失败"""
+        self._summary_text.setPlainText(error_msg)
+        self._btn_summary.setEnabled(True)
+        self._btn_summary.setText("生成摘要")
+        QMessageBox.warning(self, "错误", error_msg)
 
     # ==================== AI 对话 ====================
 
@@ -792,40 +896,73 @@ class MainWindow(QMainWindow):
 
         # 在子线程中调用 API
         def chat():
-            answer = self._llm.chat(transcript, question, history_list)
-            QTimer.singleShot(0, lambda: self._on_chat_ready(question, answer))
+            try:
+                answer = self._llm.chat(transcript, question, history_list)
+                self.chat_ready.emit(question, answer)
+            except Exception as e:
+                error_msg = f"对话失败: {str(e)}"
+                self.chat_error.emit(question, error_msg)
 
         import threading
         threading.Thread(target=chat, daemon=True).start()
 
     def _on_chat_ready(self, question, answer):
         """AI 回答就绪"""
-        # 更新最后一条"思考中..."
+        # 保存到数据库
+        if self._current_meeting_id:
+            self._db.save_chat(self._current_meeting_id, question, answer)
+
+        # 更新最后一条"思考中..."为实际回答
         cursor = self._chat_display.textCursor()
-        cursor.movePosition(cursor.End)
+        cursor.movePosition(QtGui.QTextCursor.End)
+        cursor.movePosition(QtGui.QTextCursor.StartOfLine, QtGui.QTextCursor.KeepAnchor)
+        cursor.removeSelectedText()
+        cursor.insertHtml(f"<b style='color:{Colors.TEXT_SECONDARY}'>答：</b>{answer}")
         self._chat_display.setTextCursor(cursor)
 
-        # 重新渲染整个对话区（简单实现）
-        chats = self._db.get_chats(self._current_meeting_id)
-        self._chat_display.clear()
-        for c in chats:
-            self._chat_display.append(f"<b style='color:{Colors.ACCENT_LIGHT}'>问：</b>{c['question']}")
-            self._chat_display.append(f"<b style='color:{Colors.TEXT_SECONDARY}'>答：</b>{c['answer']}")
-            self._chat_display.append("")
-
-        # 追加新的对话
-        self._chat_display.append(f"<b style='color:{Colors.ACCENT_LIGHT}'>问：</b>{question}")
-        self._chat_display.append(f"<b style='color:{Colors.TEXT_SECONDARY}'>答：</b>{answer}")
-        self._chat_display.append("")
-
-        # 保存到数据库
-        self._db.save_chat(self._current_meeting_id, question, answer)
         self._scroll_chat_to_bottom()
+
+    def _on_chat_error(self, question, error_msg):
+        """AI 对话失败"""
+        # 更新最后一条"思考中..."为错误信息
+        cursor = self._chat_display.textCursor()
+        cursor.movePosition(QtGui.QTextCursor.End)
+        cursor.movePosition(QtGui.QTextCursor.StartOfLine, QtGui.QTextCursor.KeepAnchor)
+        cursor.removeSelectedText()
+        cursor.insertText(f"<b style='color:red'>答：</b>{error_msg}")
+        self._chat_display.setTextCursor(cursor)
+        self._scroll_chat_to_bottom()
+        QMessageBox.warning(self, "错误", error_msg)
 
     def _scroll_chat_to_bottom(self):
         """滚动对话区到底部"""
         scrollbar = self._chat_display.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
+
+    def _test_api_connection(self):
+        """测试 API 连接"""
+        self.statusBar().showMessage("正在测试 API 连接...")
+
+        def test():
+            success, message = self._llm.test_connection()
+            QMetaObject.invokeMethod(
+                self, "_on_api_test_result",
+                Qt.QueuedConnection,
+                Q_ARG(bool, success),
+                Q_ARG(str, message)
+            )
+
+        import threading
+        threading.Thread(target=test, daemon=True).start()
+
+    def _on_api_test_result(self, success, message):
+        """API 测试结果"""
+        if success:
+            QMessageBox.information(self, "API 测试", message)
+            self.statusBar().showMessage("API 连接正常")
+        else:
+            QMessageBox.warning(self, "API 测试失败", message)
+            self.statusBar().showMessage("API 连接失败")
 
     # ==================== 声纹管理对话框 ====================
 
@@ -841,7 +978,8 @@ class MainWindow(QMainWindow):
         self._closing = True
         if self._transcriber and self._transcriber.isRunning():
             self._transcriber.stop()
-            self._transcriber.wait(3000)
+            self._transcriber.wait(5000)
+            self._transcriber = None
         if self._audio_stream:
             sd.stop()
         event.accept()

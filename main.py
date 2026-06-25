@@ -6,6 +6,22 @@
 
 import sys
 import os
+import logging
+
+# 配置日志：控制台显示 WARNING 及以上，文件保留详细日志
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setLevel(logging.WARNING)
+console_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+
+file_handler = logging.FileHandler('meetwise.log', encoding='utf-8')
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+
+logger.addHandler(console_handler)
+logger.addHandler(file_handler)
 
 # 确保项目根目录在 Python 路径中
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -13,20 +29,16 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 def main():
     """主函数"""
-    # 高 DPI 支持（必须在 QApplication 之前设置）
     os.environ["QT_ENABLE_HIGHDPI_SCALING"] = "1"
 
     from PySide6.QtWidgets import QApplication
     from PySide6.QtCore import Qt
 
-    # 创建应用
     app = QApplication(sys.argv)
     app.setApplicationName("智会 MeetWise")
     app.setOrganizationName("MeetWise")
 
-    # 全局异常处理
     def exception_hook(exctype, value, traceback):
-        """全局异常捕获"""
         import traceback as tb
         error_msg = "".join(tb.format_exception(exctype, value, traceback))
         print(f"[全局异常] {error_msg}")
@@ -39,12 +51,10 @@ def main():
 
     sys.excepthook = exception_hook
 
-    # 创建并显示主窗口
     from meetwise.view.main_window import MainWindow
     window = MainWindow()
     window.show()
 
-    # 运行事件循环
     sys.exit(app.exec())
 
 

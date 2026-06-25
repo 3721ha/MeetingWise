@@ -12,7 +12,10 @@ import time
 import threading
 import os
 import soundfile as sf
+import logging
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 from PySide6.QtCore import QThread, Signal
 
@@ -181,7 +184,7 @@ class RealtimeTranscriber(QThread):
         关键：只做 queue.put，绝不做任何耗时操作！
         """
         if status:
-            print(f"[Transcriber] 音频状态: {status}")
+            logger.debug(f"[Transcriber] 音频状态: {status}")
         # 将音频块放入队列
         self._audio_queue.put(indata.copy())
 
@@ -259,14 +262,14 @@ class RealtimeTranscriber(QThread):
 
         try:
             sf.write(file_path, audio, self._sample_rate)
-            print(f"[Transcriber] 录音已保存: {file_path}")
+            logger.info(f"[Transcriber] 录音已保存: {file_path}")
 
             # 更新数据库中的录音路径
             self._db.end_meeting(self._meeting_id, recording_path=file_path)
 
             return file_path
         except Exception as e:
-            print(f"[Transcriber] 录音保存失败: {e}")
+            logger.error(f"[Transcriber] 录音保存失败: {e}")
             return None
 
     def pause(self):

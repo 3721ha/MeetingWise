@@ -8,6 +8,8 @@ import numpy as np
 import torch
 import logging
 
+logger = logging.getLogger(__name__)
+
 logging.getLogger("pyannote").setLevel(logging.WARNING)
 
 
@@ -32,7 +34,7 @@ class SpeakerRecognizer:
         if self._model is not None:
             return
 
-        print(f"[SpeakerRecognizer] 正在加载声纹模型: {self._model_name}...")
+        logger.info(f"[SpeakerRecognizer] 正在加载声纹模型: {self._model_name}...")
         try:
             from pyannote.audio import Model
             self._model = Model.from_pretrained(
@@ -40,9 +42,9 @@ class SpeakerRecognizer:
                 use_auth_token=self._hf_token,
                 strict=False
             )
-            print("[SpeakerRecognizer] 声纹模型加载完成")
+            logger.info("[SpeakerRecognizer] 声纹模型加载完成")
         except Exception as e:
-            print(f"[SpeakerRecognizer] 声纹模型加载失败: {e}")
+            logger.error(f"[SpeakerRecognizer] 声纹模型加载失败: {e}")
             raise
 
     def extract_embedding(self, audio_data, sample_rate=16000):
@@ -53,7 +55,7 @@ class SpeakerRecognizer:
         :return: 512 维 float32 numpy 数组
         """
         if self._model is None:
-            print("[SpeakerRecognizer] 模型未加载，无法提取声纹特征")
+            logger.warning("[SpeakerRecognizer] 模型未加载，无法提取声纹特征")
             return None
 
         if audio_data is None or len(audio_data) == 0:
@@ -79,7 +81,7 @@ class SpeakerRecognizer:
                 else:
                     waveform = torch.from_numpy(audio_data)
             else:
-                print(f"[SpeakerRecognizer] 音频维度异常: {audio_data.shape}")
+                logger.warning(f"[SpeakerRecognizer] 音频维度异常: {audio_data.shape}")
                 return None
 
             # 提取声纹特征
@@ -91,7 +93,7 @@ class SpeakerRecognizer:
             return embedding.astype(np.float32)
 
         except Exception as e:
-            print(f"[SpeakerRecognizer] 声纹提取失败: {e}")
+            logger.error(f"[SpeakerRecognizer] 声纹提取失败: {e}")
             return None
 
     def identify_speaker(self, embedding, voiceprints, threshold=0.7):
@@ -116,7 +118,7 @@ class SpeakerRecognizer:
 
         # 超过阈值则返回匹配的姓名
         if best_similarity >= threshold:
-            print(f"[SpeakerRecognizer] 匹配成功: {best_name} (相似度: {best_similarity:.3f})")
+            logger.debug(f"[SpeakerRecognizer] 匹配成功: {best_name} (相似度: {best_similarity:.3f})")
             return best_name
 
         return None
@@ -149,7 +151,7 @@ class SpeakerRecognizer:
         self._unknown_map[emb_key] = label
         self._last_unknown_label = label
 
-        print(f"[SpeakerRecognizer] 新陌生人: {label}")
+        logger.info(f"[SpeakerRecognizer] 新陌生人: {label}")
         return label
 
     def register_voiceprint(self, audio_data, sample_rate=16000):

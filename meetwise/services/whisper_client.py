@@ -7,6 +7,8 @@
 import numpy as np
 import logging
 
+logger = logging.getLogger(__name__)
+
 logging.getLogger("faster_whisper").setLevel(logging.WARNING)
 
 from zhconv import convert
@@ -28,7 +30,7 @@ class WhisperClient:
         if self._model is not None:
             return
 
-        print(f"[WhisperClient] 正在加载模型: {self._model_size}...")
+        logger.info(f"[WhisperClient] 正在加载模型: {self._model_size}...")
         try:
             from faster_whisper import WhisperModel
             # device="auto" 自动选择 GPU/CPU
@@ -38,9 +40,9 @@ class WhisperClient:
                 device="auto",
                 compute_type="int8"
             )
-            print(f"[WhisperClient] 模型加载完成: {self._model_size}")
+            logger.info(f"[WhisperClient] 模型加载完成: {self._model_size}")
         except Exception as e:
-            print(f"[WhisperClient] 模型加载失败: {e}")
+            logger.error(f"[WhisperClient] 模型加载失败: {e}")
             raise
 
     def transcribe(self, audio_data, language="zh"):
@@ -90,7 +92,7 @@ class WhisperClient:
             return results
 
         except Exception as e:
-            print(f"[WhisperClient] 转写失败: {e}")
+            logger.error(f"[WhisperClient] 转写失败: {e}")
             return []
 
     def is_loaded(self):
