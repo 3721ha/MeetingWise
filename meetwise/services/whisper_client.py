@@ -9,6 +9,8 @@ import logging
 
 logging.getLogger("faster_whisper").setLevel(logging.WARNING)
 
+from zhconv import convert
+
 
 class WhisperClient:
     """faster-whisper 语音转写客户端"""
@@ -78,6 +80,7 @@ class WhisperClient:
             for segment in segments:
                 text = segment.text.strip()
                 if text:
+                    text = convert(text, "zh-hans")
                     results.append({
                         "text": text,
                         "start": segment.start,

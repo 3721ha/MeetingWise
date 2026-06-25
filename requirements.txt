@@ -16,4 +16,6 @@ torchaudio>=2.0.0
 
 openai>=1.0.0
 
+zhconv>=1.4.0
+
 $env:HF_ENDPOINT="https://hf-mirror.com"
