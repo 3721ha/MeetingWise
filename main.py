@@ -37,7 +37,7 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName("智会 MeetWise")
     app.setOrganizationName("MeetWise")
-
+ # 全局异常捕获钩子
     def exception_hook(exctype, value, traceback):
         import traceback as tb
         error_msg = "".join(tb.format_exception(exctype, value, traceback))
@@ -50,7 +50,7 @@ def main():
         sys.__excepthook__(exctype, value, traceback)
 
     sys.excepthook = exception_hook
-
+ # 加载并显示主窗口
     from meetwise.view.main_window import MainWindow
     window = MainWindow()
     window.show()

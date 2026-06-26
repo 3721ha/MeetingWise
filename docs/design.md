@@ -118,8 +118,16 @@ MeetWise/
 | 音频文件 I/O | soundfile | >=0.12.0 | WAV 文件读写 |
 | 音频处理 | numpy | >=1.24.0 | 音频数据矩阵运算 |
 | 音频处理 | pydub | >=0.25.1 | 音频片段操作 |
+| 文本转换 | zhconv | >=1.4.0 | 简繁转换（统一转写结果为简体中文） |
 
-### 3.4 开发环境
+### 3.4 日志系统
+
+| 类别 | 技术 | 用途 |
+|------|------|------|
+| 日志模块 | logging | 控制台显示 WARNING 及以上，文件保留详细日志 |
+| 日志文件 | meetwise.log | 记录所有 INFO/DEBUG/ERROR 日志，方便排查问题 |
+
+### 3.5 开发环境
 
 | 项目 | 规格 |
 |------|------|
@@ -251,6 +259,7 @@ SQLite3（本地文件数据库，无需额外安装数据库服务）
 | end_time | TEXT | 可空 | 结束时间 |
 | status | TEXT | DEFAULT 'recording' | 状态：recording / ended |
 | recording_path | TEXT | 可空 | 录音文件路径 |
+| is_pinned | INTEGER | DEFAULT 0 | 是否置顶（0=否，1=是） |
 
 #### utterances（发言记录表）
 
@@ -370,7 +379,13 @@ SQLite3（本地文件数据库，无需额外安装数据库服务）
 更新会议状态为 ended → 保存录音路径
     │
     ▼
-自动生成会议摘要 (LLMClient.generate_summary)
+弹出命名对话框 → 用户输入会议名称（默认格式：会议--日期--时长）
+    │
+    ▼
+更新会议标题 (database.update_meeting_title)
+    │
+    ▼
+刷新会议列表（显示时长、置顶优先）
 ```
 
 ### 6.2 说话人识别流程

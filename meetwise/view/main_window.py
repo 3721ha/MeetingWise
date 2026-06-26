@@ -33,7 +33,7 @@ from meetwise.view.ui_styles import DARK_STYLE, Colors, get_bubble_style
 
 class ModelLoaderThread(QThread):
     """后台模型加载线程"""
-    finished = Signal()
+    finished = Signal(bool, str)
 
     def __init__(self, whisper, recognizer):
         super().__init__()
@@ -47,10 +47,10 @@ class ModelLoaderThread(QThread):
                 self._whisper.load_model()
             if not self._recognizer.is_loaded():
                 self._recognizer.load_model()
+            self.finished.emit(True, "")
         except Exception as e:
             print(f"[ModelLoaderThread] 模型加载失败: {e}")
-        finally:
-            self.finished.emit()
+            self.finished.emit(False, str(e))
 
 
 class MainWindow(QMainWindow):
@@ -60,7 +60,6 @@ class MainWindow(QMainWindow):
     summary_error = Signal(str)
     chat_ready = Signal(str, str)
     chat_error = Signal(str, str)
-    api_test_ready = Signal(bool, str)
 
     def __init__(self):
         super().__init__()
@@ -103,19 +102,28 @@ class MainWindow(QMainWindow):
         self.summary_error.connect(self._on_summary_error)
         self.chat_ready.connect(self._on_chat_ready)
         self.chat_error.connect(self._on_chat_error)
-        self.api_test_ready.connect(self._on_api_test_result)
 
         # 构建 UI
         self._init_ui()
         self._load_meeting_list()
 
         # 状态栏
-        self.statusBar().showMessage("就绪")
+        self.statusBar().showMessage("模型加载中，请稍候...")
 
         # 后台预加载模型
         self._model_loader = ModelLoaderThread(self._whisper, self._recognizer)
-        self._model_loader.finished.connect(lambda: self.statusBar().showMessage("模型加载完成"))
+        self._model_loader.finished.connect(self._on_models_loaded)
         self._model_loader.start()
+
+    def _on_models_loaded(self, success, error_msg):
+        """模型加载完成回调"""
+        if success:
+            self.statusBar().showMessage("就绪")
+            self._btn_new_meeting.setEnabled(True)
+            self._btn_start.setEnabled(True)
+        else:
+            self.statusBar().showMessage("模型加载失败")
+            QMessageBox.critical(self, "模型加载失败", f"无法加载语音模型，请检查网络连接或模型文件路径。\n\n错误信息: {error_msg}")
 
     def _init_ui(self):
         """初始化主界面"""
@@ -175,10 +183,11 @@ class MainWindow(QMainWindow):
         layout.addWidget(btn_voiceprint)
 
         # 新建会议按钮
-        btn_new_meeting = QPushButton("新建会议")
-        btn_new_meeting.setObjectName("primaryBtn")
-        btn_new_meeting.clicked.connect(self._start_new_meeting)
-        layout.addWidget(btn_new_meeting)
+        self._btn_new_meeting = QPushButton("新建会议")
+        self._btn_new_meeting.setObjectName("primaryBtn")
+        self._btn_new_meeting.clicked.connect(self._start_new_meeting)
+        self._btn_new_meeting.setEnabled(False)
+        layout.addWidget(self._btn_new_meeting)
 
         return frame
 
@@ -278,6 +287,7 @@ class MainWindow(QMainWindow):
         self._btn_start.setObjectName("primaryBtn")
         self._btn_start.setFixedSize(70, 32)
         self._btn_start.clicked.connect(self._on_start_clicked)
+        self._btn_start.setEnabled(False)
         control_layout.addWidget(self._btn_start)
 
         self._btn_pause = QPushButton("暂停")
@@ -502,15 +512,12 @@ class MainWindow(QMainWindow):
 
     def _start_new_meeting(self):
         """开始新会议"""
-        # 如果正在录音，先停止
+        if not self._whisper.is_loaded() or not self._recognizer.is_loaded():
+            return
+
         if self._transcriber and self._transcriber.state == RealtimeTranscriber.RECORDING:
             self._on_stop_clicked()
             return
-
-        # 确保旧线程完全退出
-        if self._transcriber and self._transcriber.isRunning():
-            self._transcriber.stop()
-            self._transcriber.wait(2000)
 
         # 创建新会议
         self._current_meeting_id = self._db.create_meeting()
@@ -939,31 +946,6 @@ class MainWindow(QMainWindow):
         scrollbar = self._chat_display.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
 
-    def _test_api_connection(self):
-        """测试 API 连接"""
-        self.statusBar().showMessage("正在测试 API 连接...")
-
-        def test():
-            success, message = self._llm.test_connection()
-            QMetaObject.invokeMethod(
-                self, "_on_api_test_result",
-                Qt.QueuedConnection,
-                Q_ARG(bool, success),
-                Q_ARG(str, message)
-            )
-
-        import threading
-        threading.Thread(target=test, daemon=True).start()
-
-    def _on_api_test_result(self, success, message):
-        """API 测试结果"""
-        if success:
-            QMessageBox.information(self, "API 测试", message)
-            self.statusBar().showMessage("API 连接正常")
-        else:
-            QMessageBox.warning(self, "API 测试失败", message)
-            self.statusBar().showMessage("API 连接失败")
-
     # ==================== 声纹管理对话框 ====================
 
     def _open_voiceprint_dialog(self):
@@ -978,8 +960,7 @@ class MainWindow(QMainWindow):
         self._closing = True
         if self._transcriber and self._transcriber.isRunning():
             self._transcriber.stop()
-            self._transcriber.wait(5000)
-            self._transcriber = None
+            self._transcriber.wait(3000)
         if self._audio_stream:
             sd.stop()
         event.accept()

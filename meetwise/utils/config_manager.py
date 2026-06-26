@@ -6,9 +6,6 @@
 
 import json
 import os
-import logging
-
-logger = logging.getLogger(__name__)
 
 # 默认配置项
 DEFAULT_CONFIG = {
@@ -66,7 +63,7 @@ class ConfigManager:
                     if key not in self._config:
                         self._config[key] = value
             except (json.JSONDecodeError, IOError) as e:
-                logger.error(f"[ConfigManager] 配置文件读取失败，使用默认配置: {e}")
+                print(f"[ConfigManager] 配置文件读取失败，使用默认配置: {e}")
                 self._config = DEFAULT_CONFIG.copy()
                 self.save()
         else:
@@ -88,7 +85,7 @@ class ConfigManager:
             with open(self._config_path, "w", encoding="utf-8") as f:
                 json.dump(self._config, f, ensure_ascii=False, indent=2)
         except IOError as e:
-            logger.error(f"[ConfigManager] 配置文件保存失败: {e}")
+            print(f"[ConfigManager] 配置文件保存失败: {e}")
 
     def get_all(self):
         """获取所有配置项"""

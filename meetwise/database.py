@@ -38,16 +38,9 @@ class Database:
                 start_time TEXT NOT NULL,
                 end_time TEXT,
                 status TEXT DEFAULT 'recording',
-                recording_path TEXT,
-                is_pinned INTEGER DEFAULT 0
+                recording_path TEXT
             )
         """)
-
-        # 为旧数据库添加 is_pinned 列
-        try:
-            cursor.execute("ALTER TABLE meetings ADD COLUMN is_pinned INTEGER DEFAULT 0")
-        except sqlite3.OperationalError:
-            pass
 
         # 发言记录表（转写文本）
         cursor.execute("""
@@ -130,18 +123,34 @@ class Database:
         conn.close()
 
     def get_all_meetings(self):
-        """获取所有会议列表（置顶优先，然后按时间倒序）"""
+        """获取所有会议列表（按时间倒序）"""
         conn = self._get_conn()
         cursor = conn.execute(
-            "SELECT id, title, start_time, end_time, status, recording_path, is_pinned FROM meetings ORDER BY is_pinned DESC, start_time DESC"
+            "SELECT id, title, start_time, end_time, status, recording_path FROM meetings ORDER BY start_time DESC"
         )
         rows = cursor.fetchall()
         conn.close()
         return [
             {
                 "id": r[0], "title": r[1], "start_time": r[2],
-                "end_time": r[3], "status": r[4], "recording_path": r[5],
-                "is_pinned": bool(r[6])
+                "end_time": r[3], "status": r[4], "recording_path": r[5]
+            }
+            for r in rows
+        ]
+
+    def search_meetings(self, keyword):
+        """根据关键词搜索会议（匹配标题）"""
+        conn = self._get_conn()
+        cursor = conn.execute(
+            "SELECT id, title, start_time, end_time, status, recording_path FROM meetings WHERE title LIKE ? ORDER BY start_time DESC",
+            (f"%{keyword}%",)
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return [
+            {
+                "id": r[0], "title": r[1], "start_time": r[2],
+                "end_time": r[3], "status": r[4], "recording_path": r[5]
             }
             for r in rows
         ]
@@ -150,7 +159,7 @@ class Database:
         """获取单个会议信息"""
         conn = self._get_conn()
         cursor = conn.execute(
-            "SELECT id, title, start_time, end_time, status, recording_path, is_pinned FROM meetings WHERE id=?",
+            "SELECT id, title, start_time, end_time, status, recording_path FROM meetings WHERE id=?",
             (meeting_id,)
         )
         row = cursor.fetchone()
@@ -158,46 +167,9 @@ class Database:
         if row:
             return {
                 "id": row[0], "title": row[1], "start_time": row[2],
-                "end_time": row[3], "status": row[4], "recording_path": row[5],
-                "is_pinned": bool(row[6])
+                "end_time": row[3], "status": row[4], "recording_path": row[5]
             }
         return None
-
-    def toggle_pin_meeting(self, meeting_id):
-        """切换会议置顶状态"""
-        conn = self._get_conn()
-        cursor = conn.execute("SELECT is_pinned FROM meetings WHERE id=?", (meeting_id,))
-        row = cursor.fetchone()
-        if row:
-            new_pin = 0 if row[0] else 1
-            conn.execute("UPDATE meetings SET is_pinned=? WHERE id=?", (new_pin, meeting_id))
-            conn.commit()
-        conn.close()
-
-    def update_meeting_title(self, meeting_id, title):
-        """更新会议标题"""
-        conn = self._get_conn()
-        conn.execute("UPDATE meetings SET title=? WHERE id=?", (title, meeting_id))
-        conn.commit()
-        conn.close()
-
-    def search_meetings(self, keyword):
-        """按标题或时间搜索会议"""
-        conn = self._get_conn()
-        cursor = conn.execute(
-            "SELECT id, title, start_time, end_time, status, recording_path, is_pinned FROM meetings WHERE title LIKE ? OR start_time LIKE ? ORDER BY is_pinned DESC, start_time DESC",
-            (f"%{keyword}%", f"%{keyword}%")
-        )
-        rows = cursor.fetchall()
-        conn.close()
-        return [
-            {
-                "id": r[0], "title": r[1], "start_time": r[2],
-                "end_time": r[3], "status": r[4], "recording_path": r[5],
-                "is_pinned": bool(r[6])
-            }
-            for r in rows
-        ]
 
     def delete_meeting(self, meeting_id):
         """删除会议及其所有关联数据（级联删除）"""
@@ -206,6 +178,13 @@ class Database:
         conn.execute("DELETE FROM summaries WHERE meeting_id=?", (meeting_id,))
         conn.execute("DELETE FROM utterances WHERE meeting_id=?", (meeting_id,))
         conn.execute("DELETE FROM meetings WHERE id=?", (meeting_id,))
+        conn.commit()
+        conn.close()
+
+    def update_meeting_title(self, meeting_id, title):
+        """更新会议标题"""
+        conn = self._get_conn()
+        conn.execute("UPDATE meetings SET title=? WHERE id=?", (title, meeting_id))
         conn.commit()
         conn.close()
 
