@@ -90,9 +90,3 @@ class ConfigManager:
     def get_all(self):
         """获取所有配置项"""
         return self._config.copy()
-
-    @classmethod
-    def reset(cls):
-        """重置单例（仅用于测试）"""
-        cls._instance = None
-        cls._config = None

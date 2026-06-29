@@ -199,7 +199,7 @@ MeetWise/
 | speaker_recognizer.py | SpeakerRecognizer | 声纹特征提取（pyannote）+ 余弦相似度比对 + 陌生人编号管理 |
 | voiceprint_manager.py | VoiceprintManager | 声纹注册流程管理：录音采样、特征提取、保存到数据库 |
 | whisper_client.py | WhisperClient | Faster-Whisper 模型封装：加载模型、执行转写、返回分段文本 |
-| llm_client.py | LLMClient | 智谱 GLM API 封装：生成会议摘要、基于会议内容的 AI 对话 |
+| llm_client.py | LLMClient | 智谱 GLM API 封装：生成按发言人分组的会议摘要、基于会议内容的 AI 对话 |
 
 #### 工具层（utils/）
 
@@ -437,18 +437,23 @@ Database.save_voiceprint 保存：
 会议结束后
     │
     ▼
-Database.get_full_transcript 获取完整转写文本
+Database.get_full_transcript 获取完整转写文本（包含发言人信息）
     │
     ▼
 构造 Prompt：
     ├── System: "你是专业的会议纪要助手..."
-    └── User: 转写文本 + 摘要要求（关键点/待办/结论）
+    └── User: 转写文本 + 摘要要求（按发言人分组/关键点/待办/结论）
     │
     ▼
 LLMClient → 智谱 GLM-4.5-Air API
     │
     ▼
-返回 Markdown 格式结构化摘要
+返回 Markdown 格式结构化摘要（按发言人分组）
+    │
+    ├── 每个发言人的核心观点和贡献
+    ├── 关键点（注明涉及的发言人）
+    ├── 待办事项（明确标注负责人）
+    └── 会议结论
     │
     ▼
 Database.save_summary 保存到数据库

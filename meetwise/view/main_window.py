@@ -525,18 +525,20 @@ class MainWindow(QMainWindow):
         self._summary_text.clear()
         self._chat_display.clear()
 
-        # 创建转写引擎
+        # 创建转写引擎（QThread子线程）
         self._transcriber = RealtimeTranscriber(
             self._whisper, self._recognizer, self._db,
             self._current_meeting_id, self._config
         )
+
+        # 信号连接（子线程 → UI线程）
         self._transcriber.utterance_ready.connect(self._on_utterance)
         self._transcriber.status_changed.connect(self._on_status_changed)
         self._transcriber.error_occurred.connect(self._on_error)
         self._transcriber.meeting_ended.connect(self._on_meeting_ended)
         self._transcriber.duration_updated.connect(self._on_duration_updated)
 
-        # 启动转写引擎
+        # 启动子线程
         self._transcriber.start()
 
         # 更新 UI 状态

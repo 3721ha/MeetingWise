@@ -95,7 +95,9 @@ class RealtimeTranscriber(QThread):
 
         # 加载模型
         try:
+            # 加载 Whisper 转写模型
             self._whisper.load_model()
+            # 加载 pyannote 声纹模型
             self._recognizer.load_model()
         except Exception as e:
             self.error_occurred.emit(f"模型加载失败: {str(e)}")
@@ -103,7 +105,9 @@ class RealtimeTranscriber(QThread):
             return
 
         # 加载声纹库
+        # 从数据库加载已注册的声纹
         self._voiceprints = self._db.get_all_voiceprints()
+        # 重置陌生人编号计数器
         self._recognizer.reset_unknown_counter()
 
         # 创建录音目录
@@ -112,7 +116,7 @@ class RealtimeTranscriber(QThread):
         self.status_changed.emit("开始录音...")
         self._buffer_start_time = 0
 
-        # 启动 sounddevice 音频流
+        # 启动 sounddevice 音频流，底层音频流构造（PortAudio 绑定）
         try:
             self._stream = sd.InputStream(
                 samplerate=self._sample_rate,
@@ -132,7 +136,7 @@ class RealtimeTranscriber(QThread):
 
         try:
             while self._state in (self.RECORDING, self.PAUSED):
-                # 从队列中取出所有可用音频
+                # 从队列中取出所有可用音频，从线程安全队列“虹吸”音频数据
                 while not self._audio_queue.empty():
                     try:
                         chunk = self._audio_queue.get_nowait()
